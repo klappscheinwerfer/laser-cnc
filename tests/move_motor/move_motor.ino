@@ -1,7 +1,7 @@
 // This program moves the laser on one axis forwards and backwards
 
-const int dirPin = 2;
-const int stepPin = 3;
+const int dirPin = 8;
+const int stepPin = 9;
 const int stepsPerRevolution = 200;
 
 void setup() {
