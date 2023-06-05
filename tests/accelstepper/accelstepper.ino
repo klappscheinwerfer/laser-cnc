@@ -1,3 +1,5 @@
+// This programm moves the laser using AccelStepper.h library
+
 #include <AccelStepper.h>
 
 #define motorInterfaceType 1
@@ -27,7 +29,6 @@ void setup() {
 }
 
 void loop() {
-
 	// Move the motors one step
 	xStepper.runSpeedToPosition();
 	yStepper.runSpeedToPosition();

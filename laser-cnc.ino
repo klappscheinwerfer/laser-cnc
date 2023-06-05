@@ -2,29 +2,52 @@
 
 const int stepsPerRevolution = 200;
 
-// X axis
+// Motors - X axis
 const int xDirPin = 8;
 const int xStepPin = 9;
 Stepper xStepper(stepsPerRevolution, xDirPin, xStepPin);
-
 const float xMultiplier = 0.25;
 
-// Y axis
+// Motors - Y axis
 const int yDirPin = 2;
 const int yStepPin = 3;
 Stepper yStepper(stepsPerRevolution, yDirPin, yStepPin);
 const float yMultiplier = 0.25;
 
+// Motors - Feedrate
+#define MIN_FEEDRATE 0.1
+#define MAX_FEEDRATE 3000
+float feedrate = 0;
+long stepDelay; // microseconds
+
 // Laser
 const int laserPin = 5;
 
-// Buffer
+// Serial communication
+#define BAUD 9600
 #define BUFFER_SIZE 64
 char buffer[BUFFER_SIZE];
 int bufferPos;
 
 // Commands
 int line;
+
+void pause(long ms) {
+	delay(ms / 1000);
+	delayMicroseconds(ms % 1000);
+}
+
+void setFeedrate(float f) {
+	if (feedrate == f) return;
+
+	if (f < MIN_FEEDRATE || f > MAX_FEEDRATE) {
+		Serial.print(F("e:feedrate_too_"));
+		Serial.print(f < MIN_FEEDRATE ? F("low\n") : F("high\n"));
+		return;
+	}
+	stepDelay = 1000000.0 / f;
+	feedrate = f;
+}
 
 float parseAttribute(char code, float def) {
 	char *last = buffer;
@@ -35,6 +58,13 @@ float parseAttribute(char code, float def) {
 		last = strchr(last, ' ') + 1;
 	}
 	return def;
+}
+
+int emergencyStopCheck() {
+	if (Serial.available() == 0) return false;
+	// If any character is received, perform emergency stop
+	digitalWrite(laserPin, LOW);
+	return true;
 }
 
 void processCommand() {
@@ -48,6 +78,7 @@ void processCommand() {
 	int cmd = parseAttribute('G', -1);
 	switch (cmd) {
 		case 1:
+			setFeedrate(parseAttribute('F', feedrate));
 			moveTo(parseAttribute('X', 0), parseAttribute('Y', 0));
 			break;
 		default:
@@ -79,6 +110,7 @@ void processCommand() {
 		Serial.print(F("e:cmd_not_recognized\n"));
 	}
 	
+	// Print line number
 	Serial.print("l:");
 	Serial.print(line++);
 	Serial.print('\n');
@@ -108,7 +140,8 @@ void moveTo(int dx, int dy) {
 				over -= dx;
 				yStepper.step(diry);
 			}
-			delayMicroseconds(2000);
+			if (emergencyStopCheck()) return;
+			pause(stepDelay);
 		}
 	} else {
 		over = dy / 2;
@@ -119,13 +152,21 @@ void moveTo(int dx, int dy) {
 				over -= dy;
 				xStepper.step(dirx);
 			}
-			delayMicroseconds(2000);
+			if (emergencyStopCheck()) return;
+			pause(stepDelay);
 		}
 	}
 }
 
 void setup() {
-	Serial.begin(9600);
+	Serial.begin(BAUD);
+	setFeedrate((MIN_FEEDRATE + MAX_FEEDRATE) / 2);
+
+	// Debug: print feedrate
+	Serial.print("d:feedrate_");
+	Serial.print(feedrate);
+	Serial.print('\n');
+
 	ready();
 	line = 0;
 }
@@ -138,6 +179,8 @@ void loop() {
 		if (c == '\n') {
 			processCommand();
 			ready();
+		} else if (c == '\e') {
+			emergencyStopCheck();
 		}
 	}
 }
