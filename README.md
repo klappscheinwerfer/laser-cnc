@@ -2,10 +2,7 @@
 
 ### Supported g-code and m-code commands
 
-* G00 \[X] \[Y] \[F] - Absolute move (X,Y) at speed F
 * G01 \[X] \[Y] \[F] - Relative move (X,Y) at speed F
-* G90 - Absolute mode
-* G91 - Relative mode
 * G92 \[X] \[Y] - Change logical position
 
 * M03 - Laser on
@@ -18,7 +15,7 @@
 
 ### Output
 
-* `d:<debug_msg>` - debug message
+* `d:<debug_msg>\n` - debug message
 * `e:<error_type>\n` - error with description
 * `l:<line_number>\n` - line number
 * `ready\n` - ready for the next command

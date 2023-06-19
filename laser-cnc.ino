@@ -6,13 +6,16 @@ const int stepsPerRevolution = 200;
 const int xDirPin = 8;
 const int xStepPin = 9;
 Stepper xStepper(stepsPerRevolution, xDirPin, xStepPin);
-const float xMultiplier = 0.25;
+const float xMultiplier = 80;
 
 // Motors - Y axis
 const int yDirPin = 2;
 const int yStepPin = 3;
 Stepper yStepper(stepsPerRevolution, yDirPin, yStepPin);
-const float yMultiplier = 0.25;
+const float yMultiplier = 80;
+
+// Motors - Position
+float xPos, yPos;
 
 // Motors - Feedrate
 #define MIN_FEEDRATE 0.1
@@ -20,11 +23,16 @@ const float yMultiplier = 0.25;
 float feedrate = 0;
 long stepDelay; // microseconds
 
+// Motors - Microstepping
+#define ENABLE_MICROSTEPPING true
+const int xMSPin = 11;
+const int yMSPin = 5;
+
 // Laser
-const int laserPin = 5;
+const int laserPin = 4;
 
 // Serial communication
-#define BAUD 9600
+#define BAUD 115200
 #define BUFFER_SIZE 64
 char buffer[BUFFER_SIZE];
 int bufferPos;
@@ -47,6 +55,11 @@ void setFeedrate(float f) {
 	}
 	stepDelay = 1000000.0 / f;
 	feedrate = f;
+}
+
+void setPosition(float newX, float newY) {
+	xPos = newX;
+	yPos = newY;
 }
 
 float parseAttribute(char code, float def) {
@@ -79,7 +92,10 @@ void processCommand() {
 	switch (cmd) {
 		case 1:
 			setFeedrate(parseAttribute('F', feedrate));
-			moveTo(parseAttribute('X', 0), parseAttribute('Y', 0));
+			moveTo(parseAttribute('X', 0) * xMultiplier, parseAttribute('Y', 0) * yMultiplier);
+			break;
+		case 92:
+			setPosition(parseAttribute('X', 0), parseAttribute('Y', 0));
 			break;
 		default:
 			recognized--;
@@ -93,11 +109,11 @@ void processCommand() {
 			line = 0;
 			return;
 		case 3: // Laser ON
-			Serial.print("ON\n");
+			//Serial.print("d:laser_ON\n");
 			digitalWrite(laserPin, HIGH);
 			break;
 		case 5: // Laser OFF
-			Serial.print("OFF\n");
+			//Serial.print("d:laser_OFF\n");
 			digitalWrite(laserPin, LOW);
 			break;
 		default:
@@ -123,6 +139,9 @@ void ready() {
 }
 
 void moveTo(int dx, int dy) {
+	xPos += dx;
+	yPos += dy;
+
 	int dirx = dx > 0 ? 1 : -1;
 	int diry = dy > 0 ? 1 : -1;
 
@@ -160,12 +179,12 @@ void moveTo(int dx, int dy) {
 
 void setup() {
 	Serial.begin(BAUD);
-	setFeedrate((MIN_FEEDRATE + MAX_FEEDRATE) / 2);
+	setFeedrate(300);
 
-	// Debug: print feedrate
-	Serial.print("d:feedrate_");
-	Serial.print(feedrate);
-	Serial.print('\n');
+	if (ENABLE_MICROSTEPPING) {
+		digitalWrite(xMSPin, HIGH);
+		digitalWrite(yMSPin, HIGH);
+	}
 
 	ready();
 	line = 0;
@@ -181,6 +200,9 @@ void loop() {
 			ready();
 		} else if (c == '\e') {
 			emergencyStopCheck();
+			// Clear buffer
+			buffer[0] = '\0';
+			bufferPos = 0;
 		}
 	}
 }
